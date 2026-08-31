@@ -37,7 +37,7 @@ export function parseInsight(raw: string): Insight {
   for (const line of raw.split("\n")) {
     const [, key, value] = line.match(/^\s*([A-Z_]+)\s*:\s*(.*)$/) ?? [];
     if (!key) continue;
-    const v = value.trim();
+    const v = (value ?? "").trim();
     if (key === "EMOTION") out.emotion = v;
     else if (key === "CONFIDENCE") out.confidence = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
     else if (key === "INSIGHT") out.insight = v;
@@ -92,9 +92,9 @@ const MOCKS: Insight[] = [
 
 export function mockInsight(text: string): Insight {
   const lower = text.toLowerCase();
-  if (/tired|exhaust|drained|burn/.test(lower)) return MOCKS[2];
-  if (/worry|anxious|panic|nervous|scared/.test(lower)) return MOCKS[1];
-  return MOCKS[0];
+  if (/tired|exhaust|drained|burn/.test(lower)) return MOCKS[2]!;
+  if (/worry|anxious|panic|nervous|scared/.test(lower)) return MOCKS[1]!;
+  return MOCKS[0]!;
 }
 
 export function insightToProtocol(i: Insight): string {
