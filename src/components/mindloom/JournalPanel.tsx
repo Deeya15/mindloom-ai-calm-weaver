@@ -123,7 +123,10 @@ export function JournalPanel({
       <div className="relative mt-4">
         <Textarea
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (listening) baseRef.current = e.target.value;
+            onChange(e.target.value);
+          }}
           placeholder="Three deadlines, no sleep, and I still feel behind…"
           className="min-h-[220px] resize-none rounded-2xl border-border/70 bg-background/40 p-4 text-base leading-relaxed focus-visible:ring-primary/60"
         />
