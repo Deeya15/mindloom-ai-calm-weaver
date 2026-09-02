@@ -155,7 +155,8 @@ export function JournalPanel({
               />
             ))}
           </span>
-          Listening… (demo dictation, type to continue)
+          <span className="animate-pulse text-destructive">Listening…</span>
+          {interim ? <span className="italic truncate">“{interim}”</span> : <span>speak freely</span>}
         </div>
       )}
 
