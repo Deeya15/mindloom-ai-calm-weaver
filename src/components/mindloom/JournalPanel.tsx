@@ -1,9 +1,22 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Loader2, Sparkles, Square } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EMOTION_TAGS } from "@/lib/mindloom";
 import { cn } from "@/lib/utils";
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: any) => void) | null;
+  onerror: ((e: any) => void) | null;
+  onend: (() => void) | null;
+};
 
 type Props = {
   value: string;
@@ -23,7 +36,75 @@ export function JournalPanel({
   processing,
 }: Props) {
   const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const baseRef = useRef("");
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+
+  useEffect(() => () => recognitionRef.current?.abort(), []);
+
+  const toggleListening = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Ctor =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!Ctor) {
+      toast.error("Voice dictation isn't supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+    const rec: SpeechRecognitionLike = new Ctor();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    baseRef.current = valueRef.current;
+
+    rec.onresult = (e: any) => {
+      let finalText = "";
+      let interimText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interimText += t;
+      }
+      if (finalText) {
+        const base = baseRef.current;
+        baseRef.current = (base ? base.replace(/\s*$/, "") + " " : "") + finalText.trim();
+      }
+      setInterim(interimText);
+      const live = interimText
+        ? (baseRef.current ? baseRef.current.replace(/\s*$/, "") + " " : "") + interimText.trim()
+        : baseRef.current;
+      onChange(live);
+    };
+
+    rec.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        toast.error("Microphone permission denied. Enable it in your browser settings.");
+      } else if (e?.error !== "aborted" && e?.error !== "no-speech") {
+        toast.error("Dictation stopped unexpectedly. Please try again.");
+      }
+    };
+
+    rec.onend = () => {
+      setListening(false);
+      setInterim("");
+      recognitionRef.current = null;
+      onChange(baseRef.current);
+    };
+
+    try {
+      rec.start();
+      recognitionRef.current = rec;
+      setListening(true);
+    } catch {
+      toast.error("Couldn't start dictation. Please try again.");
+    }
+  }, [listening, onChange]);
 
   return (
     <section className="glass rounded-3xl p-5 sm:p-6">
@@ -42,17 +123,21 @@ export function JournalPanel({
       <div className="relative mt-4">
         <Textarea
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (listening) baseRef.current = e.target.value;
+            onChange(e.target.value);
+          }}
           placeholder="Three deadlines, no sleep, and I still feel behind…"
           className="min-h-[220px] resize-none rounded-2xl border-border/70 bg-background/40 p-4 text-base leading-relaxed focus-visible:ring-primary/60"
         />
         <button
           type="button"
-          onClick={() => setListening((l) => !l)}
+          onClick={toggleListening}
+          aria-pressed={listening}
           aria-label={listening ? "Stop dictation" : "Start voice dictation"}
           className={cn(
             "absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-secondary/80 transition-all hover:scale-105",
-            listening && "animate-pulse-ring border-primary/60 bg-primary/25",
+            listening && "animate-pulse-ring border-destructive/70 bg-destructive/25 text-destructive",
           )}
         >
           {listening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -70,7 +155,8 @@ export function JournalPanel({
               />
             ))}
           </span>
-          Listening… (demo dictation, type to continue)
+          <span className="animate-pulse text-destructive">Listening…</span>
+          {interim ? <span className="italic truncate">“{interim}”</span> : <span>speak freely</span>}
         </div>
       )}
 
