@@ -36,7 +36,75 @@ export function JournalPanel({
   processing,
 }: Props) {
   const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const baseRef = useRef("");
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+
+  useEffect(() => () => recognitionRef.current?.abort(), []);
+
+  const toggleListening = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Ctor =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!Ctor) {
+      toast.error("Voice dictation isn't supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+    const rec: SpeechRecognitionLike = new Ctor();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    baseRef.current = valueRef.current;
+
+    rec.onresult = (e: any) => {
+      let finalText = "";
+      let interimText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interimText += t;
+      }
+      if (finalText) {
+        const base = baseRef.current;
+        baseRef.current = (base ? base.replace(/\s*$/, "") + " " : "") + finalText.trim();
+      }
+      setInterim(interimText);
+      const live = interimText
+        ? (baseRef.current ? baseRef.current.replace(/\s*$/, "") + " " : "") + interimText.trim()
+        : baseRef.current;
+      onChange(live);
+    };
+
+    rec.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        toast.error("Microphone permission denied. Enable it in your browser settings.");
+      } else if (e?.error !== "aborted" && e?.error !== "no-speech") {
+        toast.error("Dictation stopped unexpectedly. Please try again.");
+      }
+    };
+
+    rec.onend = () => {
+      setListening(false);
+      setInterim("");
+      recognitionRef.current = null;
+      onChange(baseRef.current);
+    };
+
+    try {
+      rec.start();
+      recognitionRef.current = rec;
+      setListening(true);
+    } catch {
+      toast.error("Couldn't start dictation. Please try again.");
+    }
+  }, [listening, onChange]);
 
   return (
     <section className="glass rounded-3xl p-5 sm:p-6">
