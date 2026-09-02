@@ -132,11 +132,12 @@ export function JournalPanel({
         />
         <button
           type="button"
-          onClick={() => setListening((l) => !l)}
+          onClick={toggleListening}
+          aria-pressed={listening}
           aria-label={listening ? "Stop dictation" : "Start voice dictation"}
           className={cn(
             "absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-secondary/80 transition-all hover:scale-105",
-            listening && "animate-pulse-ring border-primary/60 bg-primary/25",
+            listening && "animate-pulse-ring border-destructive/70 bg-destructive/25 text-destructive",
           )}
         >
           {listening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
